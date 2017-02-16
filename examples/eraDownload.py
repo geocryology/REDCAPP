@@ -30,7 +30,7 @@ from os import path
 
 #settings
 dir_data = '/Users/bincao/Desktop/example'
-dir_src  = '/Users/bincao/Google Drive/script/era-Ta'
+dir_src  = '/Users/bincao/Desktop/REDCAPP/data'
 
 execfile(path.join(dir_src, 'download.py'))
 

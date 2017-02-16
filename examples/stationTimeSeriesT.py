@@ -25,15 +25,15 @@ from datetime import datetime
 ###############################################################################
 
 ##settings
-dir_scr  = '/Users/bincao/Google Drive/Script/era-Ta'#script directory
-dir_topo = '/Users/bincao/Documents/dem/GDEM'#DEM directory
-dir_era  = '/Users/bincao/Documents/era'#era directory
+dir_scr  = 'C:/Users/bincao/Documents/GitHub/REDCAPP'#toposcale directory
+dir_topo = 'C:/Users/bincao/Documents/GitHub/REDCAPP/data'#DEM directory
+dir_era  = 'C:/Users/bincao/Documents/GitHub/REDCAPP/data'#era directory
 
 execfile(path.join(dir_scr, 'downscaling.py'))
 
-geop = path.join(dir_era, 'alps_geop.nc')#surface level
-sa   = path.join(dir_era, 'alps_sa_79_15.nc')
-pl   = path.join(dir_era, 'alps_pl_79_15.nc')
+geop = path.join(dir_era,  'GEOP_testArea.nc')
+sa   = path.join(dir_era,  'ecmwf_erai_sa_m_151201_151231.nc')
+pl   = path.join(dir_era,  'ecmwf_erai_pl_m_151201_151231.nc')
 
 #run
 downscaling = downscaling(geop, sa, pl)
@@ -41,15 +41,15 @@ downscaling = downscaling(geop, sa, pl)
 variable = 'Temperature'
 
 #Format of time range desired (yy, mon, day, hh, min)
-daterange = {'beg' : datetime(2015, 01, 01, 00, 00),
-             'end' : datetime(2015, 01, 10, 18, 00)}
+daterange = {'beg' : datetime(2015, 12, 24, 00, 00),
+             'end' : datetime(2015, 12, 24, 18, 00)}
 
-file_out  = ['/Users/bincao/Desktop/pl_obs.csv',
-             '/Users/bincao/Desktop/pl_dt.csv']
+file_out  = ['C:/Users/bincao/Desktop/pl_obs.csv',
+             'C:/Users/bincao/Desktop/pl_dt.csv']
 #Format of stations desired
 #('name':'siteName','lat':latNumber, 'lon':lonNumber, 'ele':eleNumber)             
-stations = [{'name':'TAE','lat':47.47986561, 'lon':8.904870734, 'ele':585.80},
-            {'name':'AAR','lat':47.38799123, 'lon':8.043881188, 'ele':454.87}]
+stations=[{'name':'COV','lat': 46.41801198, 'lon': 9.821232448, 'ele': 3350.5},
+          {'name':'SAM','lat': 46.52639523, 'lon': 9.878944266, 'ele': 1756.2}]
 
 
 downscaling.extractStationDataCSV(daterange, variable, stations, file_out)
