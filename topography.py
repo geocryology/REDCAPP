@@ -363,7 +363,7 @@ class topography(object):
             VFL = 1 - self.scale(PVFL, 0.3,4)
             wL = 1 - self.scale(VFL, 0.4, np.log10((L-0.5)/0.1)/np.log10(1.5))
             mrvbf = wL*(L-1+VFL) + (1-wL)*mrvbf
-            #mrvbf = mrvbf/np.nanmax(mrvbf)
+            mrvbf = mrvbf/8.0
 
         return mrvbf
         
@@ -549,19 +549,6 @@ class topography(object):
             rangeE = rangeInterp(out_xy)
         return rangeE
         
-    
-    def edgeClip(self, mrvbf):
-        #the corner with values
-        center = [i/2 for i in self.shape]
-        left = np.min(np.where(np.isfinite(mrvbf[center[0],:])))#left
-        right = np.max(np.where(np.isfinite(mrvbf[center[0],:])))+1#right
-        
-        upper = np.min(np.where(np.isfinite(mrvbf[:,center[1]])))#upper
-        low = np.max(np.where(np.isfinite(mrvbf[:,center[1]])))+1#low
-        mrvbf = mrvbf[upper:low, left:right]
-        
-        return [mrvbf,upper,low,left,right]
-        
         
     def stationTopo(self, stations, file_out, initTf=50, bound=30):
         names = [s['name'] for s in stations]
@@ -598,12 +585,15 @@ class topoExport(object):
         A file of netCDF4 for spatial topographoic information.
         
     Example:
-        topoEx = topoExport(demFile, mrvbf, hypso, eleRange)
+        topoEx = topoExport(mrvbf, hypso, eleRange, dem = demFile)
         
     """
     
-    def __init__(self, demFile, mrvbf, hypso, eleRange):
-        self.dem = nc.Dataset(demFile, 'r')
+    def __init__(self, mrvbf, hypso, eleRange, demFile = None, stations = None):
+        if not (demFile is None):
+            self.dem = nc.Dataset(demFile, 'r')
+        if not (stations is None):
+            self.stations = stations
         self.mrvbf = mrvbf
         self.hypso = hypso
         self.eleRange = eleRange
@@ -677,8 +667,19 @@ class topoExport(object):
         
         nc_root.close()
         
-    def stationTopo(self, stations, file_out, initTf=50, bound=30):
-        names = [s['name'] for s in stations]#station names
+    def stationTopo(self, file_out, initTf=50, bound=30):
+        """Export a csv file contains all topographic information for given
+        stations.
+        
+        Args:
+            file_out = 'C:/Users/CaoBin/Desktop/topo_stations.nc'
+            
+        Example:
+            topoEx = topoExport(mrvbf, hypso, eleRange, stations = stations)
+            topoEx.stationTopo(file_out)
+        """
+        
+        names = [s['name'] for s in self.stations]#station names
         #topographic values [hypso, mrvbf, elevationRange]
         values = np.array([self.hypso, self.mrvbf, self.eleRange]).T
         
@@ -692,8 +693,6 @@ class topoExport(object):
                writer.writerow(row)
         output_file.close()
         
-        
-    
     
 class lscf(object):
     """

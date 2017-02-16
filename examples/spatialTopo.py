@@ -43,5 +43,5 @@ hypso = topo.coarseHypso(out_xy = None, bound = 30)
 eleRange= topo.eleRange(out_xy = None, bound = 30)
 
 #exprot
-topoEx = topoExport(dem, mrvbf, hypso, eleRange)
+topoEx = topoExport(mrvbf, hypso, eleRange, demFile = dem)
 topoEx.spatialTopo(file_out)
