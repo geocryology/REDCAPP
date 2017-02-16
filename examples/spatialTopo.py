@@ -14,38 +14,34 @@
 #fine scale of DEM.
 #==============================================================================
 
-##### HOW TO RUN THIS #########################################################
+######################### HOW TO RUN THIS #####################################
 #
 # (1) Adapt the script below (settings) and run it
 # (2) Make sure the input DEM is larger than required area
 #
 ###############################################################################
 
+from os import path
 
-#setting
-dir_scr  = 'C:/OneDrive/Script/era-Ta'#toposcale directory
-dir_topo = 'D:/Data/dem/GDEM'#DEM directory
-dir_era  = 'D:/Data/era'
-file_out = 'C:/Users/CaoBin/Desktop/topo_alps.nc'
+# =============================== SETTING-UP =================================
+dir_scr  = 'C:/Users/CaoBin/Documents/REDCAPP' #toposcale directory
+dir_topo = 'C:/Users/CaoBin/Documents/REDCAPP/data' #DEM directory
+dir_era  = 'C:/Users/CaoBin/Documents/REDCAPP/data' #ERA directory
+file_out = 'C:/Users/CaoBin/Desktop/topo_testArea.nc' #output directory
 
 execfile(path.join(dir_scr, 'topography.py'))
 
-dem  = path.join(dir_topo, 'alps_arc3.nc')
-demResoultion = 3./3600#indegree
+dem = path.join(dir_topo, 'alps_arc3.nc')
+demResoultion = 3./3600 #in degree
+# ==================================== RUN ===================================
+#topographic factors simultions
 topo = topography(dem,demResoultion)
 topo.describe()
 
+mrvbf = topo.nmrvbf(out_xy = None, initTf = 50.0)
+hypso = topo.coarseHypso(out_xy = None, bound = 30)
+eleRange= topo.eleRange(out_xy = None, bound = 30)
 
-#run
-topo.spatialTopo(file_out)
-
-
-mrvbf3 = topo.mrvbf(out_xy = None, initTf = 50.0)
-
-
-
-
-out_xy = np.array([[46.41801198, 9.821232448, 3350.520995],
-                   [46.52639523, 9.878944266, 1756.194106]])
-
-topo.mrvbf(out_xy = out_xy[:,:2], initTf = 50.0)
+#exprot
+topoEx = topoExport(dem, mrvbf, hypso, eleRange)
+topoEx.spatialTopo(file_out)

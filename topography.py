@@ -581,28 +581,66 @@ class topography(object):
                row.insert(0,names[n])
                writer.writerow(row)
         output_file.close()
-        
+
+
+class topoExport(object):
+    """"Returns a file of netCDF4 or csv contains all topographic factors 
+    needed by REDCAPP. The edges of input value will be dropped.
     
-    def spatialTopo(self, file_out, bound=30, initTf=50):
-        """Retruns topographic information
+    Args:
+        demFile
+        mrvbf: Array-like multiresolution index of valley bottoms flatness with NA at 
+               edges. Array-like
+        hypso: Array-like hypsometric position. 
+        eleRange: Array-like elevation range
+    
+    Returns:
+        A file of netCDF4 for spatial topographoic information.
+        
+    Example:
+        topoEx = topoExport(demFile, mrvbf, hypso, eleRange)
+        
+    """
+    
+    def __init__(self, demFile, mrvbf, hypso, eleRange):
+        self.dem = nc.Dataset(demFile, 'r')
+        self.mrvbf = mrvbf
+        self.hypso = hypso
+        self.eleRange = eleRange
+        
+        
+    def edgeClip(self):
+        """Drops the egde of mrvbf without data. The function is called
+        by spatialTopo().
+        """
+        #the corner with values
+        shape = self.mrvbf.shape
+        center = [i/2 for i in shape]
+        left = np.min(np.where(np.isfinite(self.mrvbf[center[0],:])))#left
+        right = np.max(np.where(np.isfinite(self.mrvbf[center[0],:])))+1#right
+        
+        upper = np.min(np.where(np.isfinite(self.mrvbf[:,center[1]])))#upper
+        low = np.max(np.where(np.isfinite(self.mrvbf[:,center[1]])))+1#low
+        
+        mrvbf = self.mrvbf[upper:low, left:right]
+        hypso = self.hypso[upper:low, left:right]
+        eleRange = self.eleRange[upper:low, left:right]
+        lons = self.dem.variables['lon'][left:right]
+        lats = self.dem.variables['lat'][upper:low]
+        
+        return mrvbf,hypso,eleRange,lons,lats
+    
+    def spatialTopo(self, file_out):
+        """Export a netCDF4 file contains all topographic information.
         
         Args:
-            file_out: output file directory and name
+            file_out = 'C:/Users/CaoBin/Desktop/topo_testArea.nc'
             
-        Returns:
-            netcdf file with (1) hypsometric position, (2) multiresolution 
-            index of valley bottom flatness and (3) elevation range.
-        Example: 
-            topo.spatialTopo('/Users/bincao/Desktop/topo.nc')
+        Example:
+            topoEx.spatialTopo(file_out)
         """
         
-        mrvbf = self.nmrvbf(out_xy = None, initTf = initTf)
-        hypso = self.coarseHypso(out_xy = None, bound = bound)
-        eleRange = self.eleRange(out_xy = None, bound = bound)
-        
-        mrvbf,upper,low,left,right = self.edgeClip(mrvbf)
-        hypso = hypso[upper:low,left:right]
-        eleRange = eleRange[upper:low,left:right]
+        mrvbf,hypso,eleRange,lons,lats = self.edgeClip()
         
         #create nc file
         nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
@@ -623,12 +661,9 @@ class topography(object):
         Mrvbf.setncatts({'long_name': 
                          "normalized multiresolution index of valley bottom flatness"})
         Hypso.setncatts({'long_name': u"hyposmetric resolution"})
-        RangeE.setncatts({'long_name': u"elevation range in surrouding area"})
-        
+        RangeE.setncatts({'long_name': u"elevation range in prescirbef neighbourhood"})
         
         #assign variables
-        lons = self.dem.variables['lon'][left:right]
-        lats = self.dem.variables['lat'][upper:low]
         longitudes[:] = lons
         latitudes[:] = lats
         Hypso[:] = hypso
@@ -642,8 +677,24 @@ class topography(object):
         
         nc_root.close()
         
+    def stationTopo(self, stations, file_out, initTf=50, bound=30):
+        names = [s['name'] for s in stations]#station names
+        #topographic values [hypso, mrvbf, elevationRange]
+        values = np.array([self.hypso, self.mrvbf, self.eleRange]).T
+        
+        #write CSV
+        with open(file_out, 'wb') as output_file:
+           writer = csv.writer(output_file)
+           writer.writerow(['station','hypso','mrvbf','eleR'])
+           for n in range(len(names)):
+               row = ['%.2f' % elem for elem in values[n]]
+               row.insert(0,names[n])
+               writer.writerow(row)
+        output_file.close()
         
         
+    
+    
 class lscf(object):
     """
     Returns land surface correction factor based on input topographyic
