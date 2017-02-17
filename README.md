@@ -18,4 +18,10 @@ REDCAPP can produce daily, high-resolution gridded fields of near-surface air te
 
 (1) Please download the codes as well as the munuscript (PLEASE ADD LINK HERE);
 
-(2) run the script of examples by using the data attached.
+(2) read "HOW TO RUN THIS" for each example;
+
+(3) run the example scripts by using the data attached.
+
+
+# Contact
+Please contact Bin Cao (caobin198912@outlook.com) if you have any question.
