@@ -18,7 +18,7 @@ REDCAPP simulates high-resolution near-surface air temperaure well through provi
 
 Additionally, the input data are not limited to ERA-Interim and could be extended to other reanalyses such as CFST, NCEP, MERRA or 20CRV2.
 
-# How to run
+# How to run REDCAPP
 REDCAPP is wrotten by python (version 2.7) and public open. To run the software, please
 
 (1) download the codes as well as the munuscript (PLEASE ADD LINK HERE);
