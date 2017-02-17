@@ -365,7 +365,7 @@ class downscaling(object):
         pl_sur = self.fast1d(t_interp, z_interp, out_xyz_sur)
         pl_obs = self.fast1d(t_interp, z_interp, out_xyz_obs)
         t_sa = self.surTa(ind_time, out_xyz_sur)
-        dt = pl_sur-t_sa
+        dt = t_sa-pl_sur
         
         return pl_obs, dt
 
@@ -443,8 +443,8 @@ class downscaling(object):
             out_xyz_obs: Topography sites to interpolate
             
         Returns:
-            out_valu: 
-            out_time: 
+            out_valu: interpolated upper-air temperature & land-surface effects
+            out_time: time series
             
         Example:
             downscaling = downscaling(dem, geop, sa, pl)
@@ -585,7 +585,7 @@ class downscaling(object):
         latitudes = nc_root.createVariable('lat', 'f4', ('lat'))
         Ta = nc_root.createVariable('surface air temperature', 
                                      'f4', ('lat', 'lon'), zlib = True)
-        dT = nc_root.createVariable('land surface influence at surface level', 
+        dT = nc_root.createVariable('coarse scale of land surface influence', 
                                      'f4', ('lat', 'lon'), zlib = True)
         
         #assign variables

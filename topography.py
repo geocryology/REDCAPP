@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# (C) Copyright Bin Cao & Stephan Gruber
-#
+# (C) Copyright Bin Cao
 # This software is licensed under the terms of the Apache Licence Version 2.0
 # which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
 #
@@ -363,7 +362,6 @@ class topography(object):
             VFL = 1 - self.scale(PVFL, 0.3,4)
             wL = 1 - self.scale(VFL, 0.4, np.log10((L-0.5)/0.1)/np.log10(1.5))
             mrvbf = wL*(L-1+VFL) + (1-wL)*mrvbf
-            mrvbf = mrvbf/8.0
 
         return mrvbf
         
@@ -549,30 +547,10 @@ class topography(object):
             rangeE = rangeInterp(out_xy)
         return rangeE
         
-        
-    def stationTopo(self, stations, file_out, initTf=50, bound=30):
-        names = [s['name'] for s in stations]
-        out_xy = np.asarray([[s['lat'],s['lon'],s['ele']] for s in stations])
-        
-        mrvbf = self.nmrvbf(out_xy=out_xy[:,:2], initTf = initTf)
-        hypso = self.siteHypso(out_xy=out_xy, bound=bound)
-        eleRange = self.eleRange(out_xy=out_xy[:,:2], bound=bound)
-        values = np.array([hypso, mrvbf, eleRange]).T
-        
-        #write CSV
-        with open(file_out, 'wb') as output_file:
-           writer = csv.writer(output_file)
-           writer.writerow(['station','hypso','mrvbf','eleR'])
-           for n in range(len(names)):
-               row = ['%.2f' % elem for elem in values[n]]
-               row.insert(0,names[n])
-               writer.writerow(row)
-        output_file.close()
-
 
 class topoExport(object):
     """"Returns a file of netCDF4 or csv contains all topographic factors 
-    needed by REDCAPP. The edges of input value will be dropped.
+    needed by REDCAPP. The edges of input mrvbf without data will be dropped.
     
     Args:
         demFile
@@ -582,11 +560,16 @@ class topoExport(object):
         eleRange: Array-like elevation range
     
     Returns:
-        A file of netCDF4 for spatial topographoic information.
+        A file of netCDF4 (csv) for spatial (station) topographoic information.
         
-    Example:
+    Examples:
+        #spatial topographic factors
         topoEx = topoExport(mrvbf, hypso, eleRange, dem = demFile)
+        topoEx.spatialTopo()
         
+        #station topographic factors
+        topoEx = topoExport(mrvbf, hypso, eleRange, stations = stations)
+        topoEx.stationTopo()       
     """
     
     def __init__(self, mrvbf, hypso, eleRange, demFile = None, stations = None):
@@ -631,6 +614,7 @@ class topoExport(object):
         """
         
         mrvbf,hypso,eleRange,lons,lats = self.edgeClip()
+        mrvbf/=8.0
         
         #create nc file
         nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
@@ -650,7 +634,7 @@ class topoExport(object):
         latitudes.setncatts({'long_name': u"latitude"})
         Mrvbf.setncatts({'long_name': 
                          "normalized multiresolution index of valley bottom flatness"})
-        Hypso.setncatts({'long_name': u"hyposmetric resolution"})
+        Hypso.setncatts({'long_name': u"hyposmetric position"})
         RangeE.setncatts({'long_name': u"elevation range in prescirbef neighbourhood"})
         
         #assign variables
@@ -681,7 +665,7 @@ class topoExport(object):
         
         names = [s['name'] for s in self.stations]#station names
         #topographic values [hypso, mrvbf, elevationRange]
-        values = np.array([self.hypso, self.mrvbf, self.eleRange]).T
+        values = np.array([self.hypso, self.mrvbf/8.0, self.eleRange]).T
         
         #write CSV
         with open(file_out, 'wb') as output_file:
@@ -694,7 +678,7 @@ class topoExport(object):
         output_file.close()
         
     
-class lscf(object):
+class landSurCorrectionFac(object):
     """
     Returns land surface correction factor based on input topographyic
     information.
@@ -709,22 +693,22 @@ class lscf(object):
         lscf: Land surafce correction factor
         
     Example:
-        lscf = lscf(alpha = 514, tau = 1.20, kappa = 0.63)
+        lscf = lscf(alpha= 0.64, betta= 1.34, sigma= 487)
         LSCF = lscf.correctionFactor()
     
     """
     
-    def __init__(self, alpha, tau, kappa):
+    def __init__(self, alpha= 0.64, betta= 1.34, sigma= 487):
+        self.sigma = sigma
+        self.betta = betta
         self.alpha = alpha
-        self.tau = tau
-        self.kappa = kappa
     
     def scale(self, eleRange):
-        return(np.exp(-eleRange/self.alpha))
+        return(np.exp(-eleRange/self.sigma))
         
-    def correctionFactor(self, eleRange, mrvbf, hypso):
+    def correctionFactor(self, hypso, mrvbf, eleRange):
         s = self.scale(eleRange)
         p = mrvbf*(1-s)
         f = hypso* (1- s) + s
-        lscf = self.tau*f + self.kappa*p
+        lscf = self.betta*f + self.alpha*p
         return(lscf)
