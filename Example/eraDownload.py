@@ -14,6 +14,7 @@
 #saved as ncdf.
 #==============================================================================
 
+from redcapp import toposcale, eraData
 from datetime import datetime
 from os import path
 
@@ -29,10 +30,7 @@ from os import path
 ################################################################################
 
 #settings
-dir_data = '/Users/bincao/Desktop/example'
-dir_src  = '/Users/bincao/Desktop/REDCAPP/Results'
-
-execfile(path.join(dir_src, 'download.py'))
+dir_data = '/Users/stgruber/Desktop/data'
 
 
 #location: alps

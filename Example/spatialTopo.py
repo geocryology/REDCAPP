@@ -22,24 +22,24 @@
 ###############################################################################
 
 from os import path
+from redcapp import topography, topoExport
 
 # =============================== SETTING-UP =================================
-dir_scr= 'C:/OneDrive/GitHub/REDCAPP' #toposcale directory
-dir_data= 'C:/OneDrive/GitHub/REDCAPP/Data' #Data directory
-file_out= 'C:/OneDrive/GitHub//REDCAPP/Result/topo_testArea.nc' #output directory
-
-execfile(path.join(dir_scr, 'topography.py'))
+dir_data= '/Users/stgruber/src/REDCAPP/data' #Data directory
+file_out= 'topo_testArea.nc' #output file
 
 dem = path.join(dir_data, 'DEM_testArea.nc')
+file_out = path.join(dir_data, file_out)
 demResoultion = 3./3600 #in degree
+
 # ==================================== RUN ===================================
 #topographic factors simultions
 topo = topography(dem,demResoultion)
-topo.describe()#dem description
+topo.describe()# dem description
 
-mrvbf= topo.nmrvbf(out_xy = None, initTf = 50.0)
-hypso= topo.coarseHypso(out_xy = None, bound = 30)
-eleRange= topo.eleRange(out_xy = None, bound = 30)
+mrvbf = topo.nmrvbf(out_xy = None, initTf = 50.0)
+hypso = topo.coarseHypso(out_xy = None, bound = 30)
+eleRange = topo.eleRange(out_xy = None, bound = 30)
 
 #exprot
 topoEx = topoExport(mrvbf, hypso, eleRange, demFile = dem)
