@@ -1,10 +1,9 @@
-# REDCAPP 
-# REanalysis Downscaling Cold Air Pooling Parameterization
+# REanalysis Downscaling Cold Air Pooling Parameterization (REDCAPP )
 
 # What is REDCAPP
 REDCAPP is a python-based open source software for parameterizing the temporal and spatial differentiation of surface effects and cold air pooling when downscaling reanalysis data in mountainous areas. REDCAPP can produce daily, high-resolution gridded fields of near-surface air temperature in mountains.
 
-# Why REDCAPP is powerful 
+# Why REDCAPP is Powerful 
 REDCAPP simulates high-resolution near-surface air temperaure well through providing a number of tools for
 
 (1) downloading and manipulation of ERA-Interim data saved as netCDF4;
@@ -18,7 +17,7 @@ REDCAPP simulates high-resolution near-surface air temperaure well through provi
 
 Additionally, the input data are not limited to ERA-Interim and could be extended to other reanalyses such as CFST, NCEP, MERRA or 20CRV2.
 
-# How to run REDCAPP
+# How to Run REDCAPP
 REDCAPP is wrotten by python (version 2.7) and public open. To run the software, please
 
 (1) Get REDCAPP at https://github.com/geocryology/REDCAPP
