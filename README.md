@@ -21,12 +21,26 @@ Additionally, the input data are not limited to ERA-Interim and could be extende
 # How to run REDCAPP
 REDCAPP is wrotten by python (version 2.7) and public open. To run the software, please
 
-(1) download the codes as well as the munuscript (PLEASE ADD LINK HERE);
+(1) Get REDCAPP at https://github.com/geocryology/REDCAPP
 
-(2) read "HOW TO RUN THIS" for each example;
+(2) Make sure that the directory containing thie file (redcapp_example.py) is contained in your PYTHONPATH.
 
-(3) directly run the example scripts by using the data attached or revise the script as wanted.
+(3) Register to ECMWF (free) https://apps.ecmwf.int/registration/
+
+(4) Follow the instructions for "Installing your API key" on
+    https://software.ecmwf.int/wiki/display/WEBAPI/Accessing+ECMWF+data+servers+in+batch
+
+(5) Adapt the script below (settings and location) 
+
+(6) Run the script
+
+(7) Explore the results. Use a netcdf viewer to plot maps and time series.
+    Panoply (https://www.giss.nasa.gov/tools/panoply) is a good one.
+
+(8) Customise the code and use it for your project.
+
 
 
 # Contact
-Please contact Bin Cao (caobin198912@outlook.com) if you have any question.
+Please let us know how things work. We hope this is useful for you.
+Bin Cao (caobin198912@outlook.com)
