@@ -53,12 +53,9 @@ from datetime import datetime
 from os import path
 
 # directory containing all raw data and output data
-dir_data = 'C:/OneDrive/data'
+dir_data = 'C:/OneDrive/GitHub/REDCAPP/Data'
 
 # output file names
-
-spatTopo_out = 'spatialTopo.nc' # spatialised topography factors
-statTopo_out = 'stationTopo.csv'# station topography factors
 spatTemp_out = 'spatialT.nc'    # spatialised mean air temperature
 statTemp_out = 'stationT.csv'   # station timeseries air temperature
 
@@ -82,14 +79,8 @@ stations=[{'name':'COV','lat': 46.41801198, 'lon': 9.821232448, 'ele': 3350.5},
 
 # make file names
 dem_ncdf  = path.join(dir_data, 'DEM_testArea.nc')
-spatTopo_out = path.join(dir_data, spatTopo_out)
-statTopo_out = path.join(dir_data, statTopo_out)
 spatTemp_out = path.join(dir_data, spatTemp_out)
 statTemp_out = path.join(dir_data, statTemp_out)
-
-dataImport = rawData(dir_data)
-sa = dataImport.saf_get()# 2-meter air temperature
-pl = dataImport.plf_get()# pressure level air temperature
 
 # dem resolution
 resolution = 3.0/3600
@@ -120,6 +111,7 @@ dataImport.ascii2ncdf(dem_file, dem_out)
 dem_ncdf = dem_out
 
 # ==== IMPORT REANALYSIS =======================================================
+
 dataImport = rawData(dir_data)
 sa = dataImport.saf_get()# 2-meter air temperature
 pl = dataImport.plf_get()# pressure level air temperature
