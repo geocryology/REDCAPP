@@ -35,9 +35,9 @@
 # ==============================================================================
 
 import numpy as np
-#from ecmwfapi import ECMWFDataServer
+from ecmwfapi import ECMWFDataServer
 import netCDF4 as nc
-#import pygrib  as pg
+import pygrib  as pg
 import csv
 import re
 
@@ -1402,6 +1402,7 @@ class topography(object):
         topo = topography(dem, demResoultion)
         topo.spatialTopo('/Users/bincao/Desktop/topo.nc')
     """
+    
 
     def __init__(self, demFile, demResolution):
         self.dem = nc.Dataset(demFile, 'r')
@@ -1464,8 +1465,8 @@ class topography(object):
             
         Returns:
             scaled value
-            """
-
+         """
+        
         return 1/(1 + (x/t)**p)
 
 
@@ -2005,7 +2006,6 @@ class landSurCorrectionFac(object):
     
     def LSCF(self, hypso, mrvbf, eleR):
         """Returns land surface correction factor"""
-        np.seterr(invalid='ignore')
         s = self.scale(eleR)
         p = mrvbf*(1-s)
         f = hypso* (1- s) + s
