@@ -35,16 +35,19 @@
 # ==============================================================================
 
 import numpy as np
-from ecmwfapi import ECMWFDataServer
+#from ecmwfapi import ECMWFDataServer
 import netCDF4 as nc
-import pygrib  as pg
+#import pygrib  as pg
 import csv
+import re
+
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import gaussian_filter,generic_filter,convolve,minimum_filter,maximum_filter
 from math import radians, exp, floor
 from bisect import bisect_left
 from datetime import datetime, timedelta
-from os import path, remove
+from os import path, remove, listdir
+
 import glob as gl
 
 
@@ -637,6 +640,137 @@ class redcapp_get(object):
 
 
 
+
+class rawData(object):
+    """
+    
+    Args:
+        dir_data: directory containing all raw data and output data
+        
+    Example:
+        dir_data = 'C:/users/bincao/Desktop/data'
+        dataImport = rawData(dir_data)
+        sa = dataImport.saf_get()#get sa file in the given directory
+        pl = dataImport.plf_get()#get pl file in the given directory
+    """
+    
+    def __init__(self, dir_data):
+        self.dir = dir_data
+        
+    def plf_get(self, nomenclature = 'ecmwf_erai_pl_*'):
+        """finds the pressure level files in the directory 
+        based on 'ecmwf_erai_pl_*'
+        """
+        for fname in listdir(self.dir):
+            if fname in gl.glob(nomenclature):
+                return path.join(self.dir, fname)
+            
+    def saf_get(self, nomenclature = 'ecmwf_erai_sa_*'):
+        """finds the pressure level files in the directory 
+        based on 'ecmwf_erai_pl_*'
+        """
+        for fname in listdir(self.dir):
+            if fname in gl.glob(nomenclature):
+                return path.join(self.dir, fname)
+            
+    def geopf_get(self, nomenclature = 'ecmwf_erai_to*'):
+        """finds the era-interim geopotential file in the directory 
+        based on 'ecmwf_erai_to*'
+        """
+        for fname in listdir(self.dir):
+            if fname in gl.glob(nomenclature):
+                return path.join(self.dir, fname)
+            
+    def asciiDemHeader(self, demAsiccf):
+        """Returns header information of input DEM in ASCIIGRID format"""
+        header = []
+        with open(demAsiccf) as f:
+            reader = csv.reader(f)
+            i=0
+            for row in reader:
+                i = i+1
+                if (i <= 5):
+                    header.append(row[0])
+            return header
+            
+    def asciiDemEle(self, demAsciif):
+        """
+        
+        Args:
+           demAsciif: DEM in ASCIIGRID format and lat/lon WGS84 grid
+           
+         Returns:
+             headerInfo: header information of input ascii file
+             ele: array-like elevation of input ascii file
+        """
+
+        #read elevation
+        return np.loadtxt(demAsciif, delimiter=' ', skiprows = 5)
+        
+    def ascii2ncdf(self, demAsciif, dem_out):
+        """convert input DEM in ASCIIGRID to netcdf file
+        
+        Args:
+            demAsciif: DEM in ASCIIGRID format and lat/lon WGS84 grid. 
+                the header of ascii file should be same as the example data,
+                xllcorner is the lontitude in the left low point, while
+                yllcorner is the latitude in the left low point.
+            dem_out: output DEM in netcdf format
+            
+        Returns a ASCIIGRID-based DEM in netcdf
+        
+        Example:
+            dir_data = 'C:/users/bincao/Desktop/data'
+            demAsciif = 'DEM_testArea.asc'
+            dem_out  = 'C:/users/bincao/Desktop/data/DEM_fine-scale.nc'
+            
+            dataImport =  dataImport = rawData(dir_data)
+            dataImport.ascii2ncdf(dem_file, dem_out)
+            
+        """
+        
+        #meta information
+        header = self.asciiDemHeader(demAsciif)
+        ncol = int(re.findall(r'\d+', header[0])[0])
+        nrow = int(re.findall(r'\d+',  header[1])[0])
+        xllcorner = float(re.findall(r'\d+\.\d+', header[2])[0])
+        yllcorner = float(re.findall(r'\d+\.\d+', header[3])[0])
+        cellsize = float(re.findall(r'\d+\.\d+',  header[4])[0])
+        
+        #get variables
+        ele = self.asciiDemEle(demAsciif)# elevation
+        lats = np.linspace(yllcorner, yllcorner+cellsize*nrow, 
+                           nrow, endpoint= True)# latitude
+        lons = np.linspace(xllcorner, xllcorner+cellsize*ncol, 
+                           ncol, endpoint= True)# lontitude
+        
+        #create nc file
+        nc_root = nc.Dataset(dem_out ,'w', format = 'NETCDF4_CLASSIC')
+        
+        #create dimensions
+        nc_root.createDimension('lat', nrow)
+        nc_root.createDimension('lon', ncol)
+        
+        #create variables
+        longitudes = nc_root.createVariable('lon', 'f4', ('lon'))
+        latitudes = nc_root.createVariable('lat', 'f4', ('lat'))
+        elevation = nc_root.createVariable('elevation', 
+                                           'f4', ('lat', 'lon'), zlib = True)
+        
+        #assign variables
+        longitudes[:] = lons
+        latitudes[:] = lats[::-1]
+        elevation[:] = ele
+        
+        #attribute
+        nc_root.description = "high-resolution topography file"
+        #resolution = cellsize
+        longitudes.units = 'degree_east (decimal)'
+        latitudes.units  = 'degree_north (decimal)'
+        elevation.units = 'm'
+        
+        nc_root.close()
+
 class downscaling(object):
     """
     Return object for downscaling that has methods for interpolationg
@@ -677,7 +811,9 @@ class downscaling(object):
             out_xyz_dem: Metadata [lat, lon, geop] of input dem or sites
             lons: Longitude of input sites
             lats: Latitude of input sites
-            shape: Shape of input dem or sites  
+            shape: Shape of input dem or sites
+            names: Name of input stations. Names will only be avaiable when 
+                stations are inputted
         """
         
         if not (stations is None):
@@ -990,7 +1126,7 @@ class downscaling(object):
         
         return pl_obs, dt
 
-    def spatialMean(self, variable, daterange, out_xyz_sur, out_xyz_obs, shape):
+    def spatialMean(self, variable, daterange):
         """Return the MEAN upper-air temperature and 
         land surface influence during given date range and at given  area
         
@@ -1035,13 +1171,15 @@ class downscaling(object):
 
         sum_pl_obs = 0
         sum_dt = 0
+        
+        out_xyz_dem, lats, lons, shape = self.demGrid()
+        out_xyz_sur = self.surGrid(lats, lons, None)
 
         print("\nConducting downscaling now, have a cup of coffee please\n")
 
         for ind_out, ind_time in enumerate(ind_time_vec):
             print(out_time[ind_out])
-            pl_obs,dt = self.interpAll(variable,ind_time, out_xyz_sur, 
-                                                out_xyz_obs)
+            pl_obs,dt = self.interpAll(variable,ind_time, out_xyz_sur, out_xyz_dem)
             sum_pl_obs += pl_obs
             sum_dt += dt
 
@@ -1053,7 +1191,7 @@ class downscaling(object):
 
         return pl,dt
        
-    def stationTimeSeries(self, variable, daterange, out_xyz_sur, out_xyz_obs):
+    def stationTimeSeries(self, variable, daterange, stations):
         """Return upper-air temperature and land surface influence
         at given time steps
         
@@ -1068,22 +1206,26 @@ class downscaling(object):
             out_time: time series
             
         Example:
-            downscaling = downscaling(dem, geop, sa, pl)
-
-            site = np.array([[47.38799123, 8.043881188, 454.87048*9.80665]])
-            out_xyz_dem, lats, lons, shape = downscaling.demGrid(site)
-            out_xyz_sur = downscaling.surGrid(lats, lons, site)
+            Downscaling = downscaling(geop, sa, pl, dem_ncdf)
+            stations=[{'name':'COV','lat': 46.41801198, 'lon': 9.821232448, 'ele': 3350.5},
+                      {'name':'SAM','lat': 46.52639523, 'lon': 9.878944266, 'ele': 1756.2}]
+            out_xyz_dem, lats, lons, shape, names = Downscaling.demGrid(stations)
+            out_xyz_sur = Downscaling.surGrid(lats, lons, site)
             
-            out_valu,out_time=downscaling.stationTimeSeries(variable, 
-                                                            daterange, 
-                                                            out_xyz_sur,
-                                                            out_xyz_dem)
+            pl, dt, out_time, names = Downscaling.stationTimeSeries(variable, 
+                                                                    daterange, 
+                                                                    out_xyz_sur,
+                                                                    out_xyz_dem)
         """
         
         #obtain time range
         date_vec = nc.num2date(self.pl.variables['time'][:],
                                 units = "seconds since 1970-1-1",
                                 calendar='standard')
+        
+        #obtain station information
+        out_xyz_dem, lats, lons, shape, names = self.demGrid(stations)
+        out_xyz_sur = self.surGrid(lats, lons, stations)
 
         #index of time steps to interpolate
         mask  = date_vec >= daterange.get('beg')
@@ -1092,19 +1234,20 @@ class downscaling(object):
         out_time = date_vec[mask]
 
         out_valu = np.zeros((2, ind_time_vec.size, 
-                             out_xyz_obs.shape[0]))#pl_obs, dt
+                             out_xyz_dem.shape[0]))#pl_obs, dt
 
         print("\nConducting downscaling now, have a cup of coffee please\n")
 
         for ind_out, ind_time in enumerate(ind_time_vec):
             print(out_time[ind_out])
             out_valu[:,ind_out,:] = self.interpAll(variable, ind_time,
-                                                   out_xyz_sur, out_xyz_obs)
+                                                   out_xyz_sur, out_xyz_dem)
 
-        return out_valu, out_time
+        return out_valu[0],out_valu[1], out_time, names
 
     
-    def extractStationDataCSV(self, daterange, variable, stations, file_out):
+    def extractStationAirTCSV(self, daterange, variable, stations, 
+                              stat_out1, stat_out2):
         """
         Extracts time series from gridded data based on a list of dictionaries
         describing stations. Time serie(s) are written into csv files,
@@ -1116,7 +1259,10 @@ class downscaling(object):
             variable: Climate variable to interpolate
             stations: Sites to interpolate. Format of stations desired
                 ('name':'siteName','lat':latNumber, 'lon':lonNumber, 'ele':eleNumber)
-        
+            stat_out1: station timeseries air temperature output file name
+            stat_out1: station timeseries coarse land-surface effects output
+                file name
+            
         Returns: 
             Returns a csv file contains time series downscaled surface air 
             temperature and land surface influences (surface level) at given 
@@ -1139,14 +1285,13 @@ class downscaling(object):
         """
         
         #interpolate and extract values
-        out_xyz_dem, lats, lons, shape, names = self.demGrid(stations)
-        out_xyz_sur = self.surGrid(lats, lons, stations)
-        values, time = self.stationTimeSeries(variable, daterange,
-                                              out_xyz_sur, out_xyz_dem)
+        
+        values, time, names = self.stationTimeSeries(variable, daterange, stations)
 
         #write CSV
+        file_out = [stat_out1, stat_out2]
         names.insert(0, 'Time_UTC')
-        for i in range(len(file_out)):
+        for i in range(2):
               with open(file_out[i], 'wb') as output_file:
                  writer = csv.writer(output_file)
                  writer.writerow(names)
@@ -1158,7 +1303,7 @@ class downscaling(object):
     
                      
     
-    def extractSpatialDataNCF(self, daterange, variable, file_out):
+    def extractSpatialAirTNCF(self, daterange, variable, file_out):
         """
         Extracts mean of given date range from gridded data based on a 
         fine-scale DEM. Mean values are written into a netcdf file,
@@ -1189,11 +1334,11 @@ class downscaling(object):
             
             downscaling.extractSpatialDataNCF(daterange, variable, file_out) 
         """
-        out_xyz_dem, lats, lons, shape = self.demGrid()
-        out_xyz_sur = self.surGrid(lats, lons, None)
-        pl,dt = self.spatialMean(variable, daterange, out_xyz_sur, 
-                                 out_xyz_dem, shape)
         
+        #temperature and coarse land-surface effects
+        pl,dt = self.spatialMean(variable, daterange)
+        shape = self.dem.variables['elevation'].shape
+                                  
         #create nc file
         nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
         
@@ -1218,8 +1363,8 @@ class downscaling(object):
         dT[:] = dt
         
         #attribute
-        nc_root.description = "Downscaled surface air temperature and land "\
-                              "surface influence (surface level) with a"\
+        nc_root.description = "Downscaled upper-air temperature and "\
+                              "coarse-scale land surface influence with a"\
                               "spatial resolution of input dem"
         longitudes.units = 'degree_east (decimal)'
         latitudes.units  = 'degree_north (decimal)'
@@ -1227,11 +1372,6 @@ class downscaling(object):
         dT.units = 'celsius'
         
         nc_root.close()
-
-
-
-
-
 
 
 
@@ -1581,6 +1721,8 @@ class topography(object):
             VFL = 1 - self.scale(PVFL, 0.3,4)
             wL = 1 - self.scale(VFL, 0.4, np.log10((L-0.5)/0.1)/np.log10(1.5))
             mrvbf = wL*(L-1+VFL) + (1-wL)*mrvbf
+			
+        mrvbf/=8
 
         return mrvbf
         
@@ -1772,64 +1914,8 @@ class topography(object):
             rangeE[::-1], method = 'linear', bounds_error = False)
             rangeE = rangeInterp(out_xy)
         return rangeE
-        
-
-class topoExport(object):
-    """"
-    Returns a file of netCDF4 or csv contains all topographic factors 
-    needed by REDCAPP. The edges of input mrvbf without data will be dropped.
+		
     
-    Args:
-        demFile
-        mrvbf: Array-like multiresolution index of valley bottoms flatness with NA at 
-               edges. Array-like
-        hypso: Array-like hypsometric position. 
-        eleRange: Array-like elevation range
-    
-    Returns:
-        A file of netCDF4 (csv) for spatial (station) topographoic information.
-        
-    Examples:
-        #spatial topographic factors
-        topoEx = topoExport(mrvbf, hypso, eleRange, dem = demFile)
-        topoEx.spatialTopo()
-        
-        #station topographic factors
-        topoEx = topoExport(mrvbf, hypso, eleRange, stations = stations)
-        topoEx.stationTopo()       
-    """
-    
-    def __init__(self, mrvbf, hypso, eleRange, demFile = None, stations = None):
-        if not (demFile is None):
-            self.dem = nc.Dataset(demFile, 'r')
-        if not (stations is None):
-            self.stations = stations
-        self.mrvbf = mrvbf
-        self.hypso = hypso
-        self.eleRange = eleRange
-        
-        
-    def edgeClip(self):
-        """
-        Drops the egde of mrvbf without data. The function is called
-        by spatialTopo().
-        """
-        #the corner with values
-        shape = self.mrvbf.shape
-        center = [i/2 for i in shape]
-        left = np.min(np.where(np.isfinite(self.mrvbf[center[0],:])))#left
-        right = np.max(np.where(np.isfinite(self.mrvbf[center[0],:])))+1#right
-        
-        upper = np.min(np.where(np.isfinite(self.mrvbf[:,center[1]])))#upper
-        low = np.max(np.where(np.isfinite(self.mrvbf[:,center[1]])))+1#low
-        
-        mrvbf = self.mrvbf[upper:low, left:right]
-        hypso = self.hypso[upper:low, left:right]
-        eleRange = self.eleRange[upper:low, left:right]
-        lons = self.dem.variables['lon'][left:right]
-        lats = self.dem.variables['lat'][upper:low]
-        
-        return mrvbf,hypso,eleRange,lons,lats
     
     def spatialTopo(self, file_out):
         """Export a netCDF4 file contains all topographic information.
@@ -1841,8 +1927,9 @@ class topoExport(object):
             topoEx.spatialTopo(file_out)
         """
         
-        mrvbf,hypso,eleRange,lons,lats = self.edgeClip()
-        mrvbf/=8.0
+        mrvbf = self.nmrvbf()
+        hypso = self.coarseHypso()
+        eleRange = self.eleRange()
         
         #create nc file
         nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
@@ -1866,76 +1953,272 @@ class topoExport(object):
         RangeE.setncatts({'long_name': u"elevation range in prescirbef neighbourhood"})
         
         #assign variables
-        longitudes[:] = lons
-        latitudes[:] = lats
+        longitudes[:] = self.lon
+        latitudes[:] = self.lat
         Hypso[:] = hypso
         Mrvbf[:] = mrvbf
         RangeE[:] = eleRange
         
         #attribute
-        nc_root.description = "DEM-derived topographic factors"
+        nc_root.description = "fine-scale DEM-derived topographic factors"
         longitudes.units = 'degree_east (demical)'
         latitudes.units = 'degree_north (demical)'
         
         nc_root.close()
-        
-    def stationTopo(self, file_out, initTf=50, bound=30):
-        """Export a csv file contains all topographic information for given
-        stations.
-        
-        Args:
-            file_out = 'C:/Users/CaoBin/Desktop/topo_stations.nc'
-            
-        Example:
-            topoEx = topoExport(mrvbf, hypso, eleRange, stations = stations)
-            topoEx.stationTopo(file_out)
-        """
-        
-        names = [s['name'] for s in self.stations]#station names
-        #topographic values [hypso, mrvbf, elevationRange]
-        values = np.array([self.hypso, self.mrvbf/8.0, self.eleRange]).T
-        
-        #write CSV
-        with open(file_out, 'wb') as output_file:
-           writer = csv.writer(output_file)
-           writer.writerow(['station','hypso','mrvbf','eleR'])
-           for n in range(len(names)):
-               row = ['%.2f' % elem for elem in values[n]]
-               row.insert(0,names[n])
-               writer.writerow(row)
-        output_file.close()
-        
     
+		
 class landSurCorrectionFac(object):
     """
-    Returns land surface correction factor based on 
-    topographic data.
+    Returns land surface correction factor based on fine-scale DEM.
     
     Args:
+        dem: fine-scale DEM in netcdf format
+        demResolution: resolution of the input dem
         alpha: Adjust constant value
-        tau: A factor relating to fractional influence of surface effects on
-            air temperature.
-        kappa: A factor relating to cold air pooling on air temperature.
-            
+        beta:  A factor relating to fractional influence of surface effects on
+               air temperature.
+        gamma: A factor relating to cold air pooling on air temperature.
+        
+        The default values are derived from the Swiss Alps. Please see details
+        from the REDCAPP paper.
+        
     Returns:
         lscf: Land surafce correction factor
         
     Example:
-        lscf = lscf(alpha= 0.64, beta= 1.34, sigma= 487)
+        dem = 'DEM_testArea.nc'
+        demRes = 3.0/3600
+        lscf = landSurCorrectionFac(dem, demRes)
         LSCF = lscf.correctionFactor(hypso, mrvbf, eleRange)
     """
     
-    def __init__(self, alpha= 0.64, beta= 1.34, sigma= 487):
-        self.sigma = sigma
+    def __init__(self, dem, demResolution, alpha= 0.61, beta= 1.56, gamma= 465):
+        self.dem   = dem
+        self.gamma = gamma
         self.beta  = beta
         self.alpha = alpha
+        self.resolution = demResolution
     
     def scale(self, eleRange):
-        return(np.exp(-eleRange/self.sigma))
         
-    def correctionFactor(self, hypso, mrvbf, eleRange):
-        s = self.scale(eleRange)
+        return(np.exp(-eleRange/self.gamma))
+    
+    def LSCF(self, hypso, mrvbf, eleR):
+        """Returns land surface correction factor"""
+        np.seterr(invalid='ignore')
+        s = self.scale(eleR)
         p = mrvbf*(1-s)
         f = hypso* (1- s) + s
+        
         lscf = self.beta*f + self.alpha*p
-        return(lscf)
+        
+        return lscf
+        
+    def spatialLSCF(self):
+        """"Returns spatialized land surface correction"""
+        topo = topography(self.dem, self.resolution)
+        mrvbf = topo.nmrvbf()
+        hypso = topo.coarseHypso()
+        eleR  = topo.eleRange()
+        
+        lscf = self.LSCF(hypso, mrvbf, eleR)
+        
+        return lscf
+    
+    def stationLSCF(self, stations):
+        """Returns station land surface correction factor"""
+        out_xyz = np.asarray([[s['lat'],s['lon'],s['ele']] for s in stations])
+        
+        topo = topography(self.dem, self.resolution)
+        mrvbf = topo.nmrvbf(out_xy = out_xyz[:,:2], initTf = 50)
+        hypso = topo.siteHypso(out_xy = out_xyz, bound = 30)
+        eleR = topo.eleRange(out_xy = out_xyz[:,:2], bound = 30)
+        
+        lscf = self.LSCF(hypso, mrvbf, eleR)
+        
+        return lscf
+    
+    
+class redcappTemp(object):
+    """returns REDCAPP derived surface air temperature for both
+    given dem area (spatialized mean air temperature) and 
+    stations (air temperature time series)
+    
+    Args:
+        geop: geopotential file, considered as coarese scale of 
+            topography.
+        sa: surface air temperature from renalysis
+        pl: pressure level temperature from renalysis
+        variable: variables to conducted here. Variable of 'Temperature' is
+            used here
+        daterange: the date range to be downscaled
+        dem: DEM file in netcdf format, consiered as fine scale of topography
+        demResolution: resolution of input dem
+    
+    Returns:
+        returns (1) spatalized mean air temperature in netcdf format, if input
+        dem file; (2) air temperature time series in csv format, if input 
+        station information
+        
+    Examples:
+        # input data
+        geop = 'ecmwf_erai_to.nc'
+        sa   = 'ecmwf_erai_sa_m_151201_151231.nc'
+        pl   = 'ecmwf_erai_pl_m_151201_151231.nc'
+        
+        variable = 'Temperature'
+        dem_ncf  = 'DEM_testArea.nc'
+        resolution = 3.0/3600
+        
+        date  = {'beg' : datetime(2015,12,1,00,00),
+                 'end' : datetime(2015,12,10,18,00)}
+        
+        # run
+        Redcapp = redcappTemp(geop, sa, pl, variable, date, dem_ncdf, resolution)
+
+        # SPATIALIZED MEAN AIR TEMPERATURE
+        Redcapp.extractSpatialDataNCF(spatTemp_out)
+
+        # AIR TEMPERATURE TIME SERIES
+        Redcapp.extractStationDataCSV(statTemp_out, stations)
+        
+    """
+    
+    def __init__(self, geop, sa, pl, variable, daterange, dem, demResolution,
+                 alpha= 0.61, beta= 1.56, gamma= 465):
+        self.geop = geop
+        self.sa = sa
+        self.pl = pl
+        self.variable = variable
+        self.daterange = daterange
+        self.dem = dem
+        self.demncdf = nc.Dataset(dem, 'r')
+        self.resolution = demResolution
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        
+    def edgeClip(self, values):
+        """
+        Drops the egde of temperature without data caused by mrvbf simulation.
+        """
+        
+        #the corner with values
+        shape = values.shape
+        center = [i/2 for i in shape]
+        left = np.min(np.where(np.isfinite(values[center[0],:])))#left
+        right = np.max(np.where(np.isfinite(values[center[0],:])))+1#right
+        
+        upper = np.min(np.where(np.isfinite(values[:,center[1]])))#upper
+        low = np.max(np.where(np.isfinite(values[:,center[1]])))+1#low
+        
+        values = values[upper:low, left:right]
+           
+        lons = self.demncdf.variables['lon'][left:right]
+        lats = self.demncdf.variables['lat'][upper:low]
+        
+        return values, lons, lats
+        
+        
+    def spatialTemp(self):
+        """Returns spatialized mean air temperature."""
+        #upp-air temperature and coarse land-surface effects
+        Downscaling = downscaling(self.geop, self.sa, self.pl, self.dem)
+        pl, dt = Downscaling.spatialMean(self.variable, self.daterange)
+        
+        #lscf
+        print "Temperature Done!"
+        print "Conducting terrain analysis..."
+        LSCF = landSurCorrectionFac(self.dem, self.resolution)
+        lscf = LSCF.spatialLSCF()
+        
+        #redcapp temperaure
+        temp = pl+lscf*dt
+        
+        temp, lons, lats = self.edgeClip(temp)
+        
+        return temp, lons, lats
+    
+    def stationTemp(self, stations):
+        """Returns air temperature time series."""
+        
+        #upp-air temperature and coarse land-surface effects
+        Downscaling = downscaling(self.geop, self.sa, self.pl)
+        
+        pl,dt,time,names = Downscaling.stationTimeSeries(self.variable, 
+                                                         self.daterange, 
+                                                         stations)
+        
+        #lscf
+        print "Temperature Done!"
+        print "Conducting terrain analysis..."
+        LSCF = landSurCorrectionFac(self.dem, self.resolution)
+        lscf = LSCF.stationLSCF(stations)
+        
+        #redcapp temperature
+        temp = np.zeros((pl.shape))# hold temp
+
+        for i in np.arange(len(names)):
+            pli = pl[:,i]
+            dti = pl[:,i]
+            lscfi = lscf[i]
+            temp[:,i] = pli + lscfi*dti
+        
+        return temp, time, names
+        
+    
+    def extractSpatialDataNCF(self, file_out):
+        """"Export spatialized mean air temperature of given dem
+        in netcdf format. Please not that the area of output spatial 
+        temperature will be smaller than the given dem owing to the 
+        mrvbf simulation donot include the edge. Plsease also see the 
+        introduction of clipEdge() fucntion"""
+        
+        temp, lons, lats = self.spatialTemp()
+        
+        #create nc file
+        nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
+        
+        #create dimensions
+        nc_root.createDimension('lat', len(lats))
+        nc_root.createDimension('lon', len(lons))
+        
+        #create variables
+        longitudes = nc_root.createVariable('lon', 'f4', ('lon'))
+        latitudes = nc_root.createVariable('lat', 'f4', ('lat'))
+        Ta = nc_root.createVariable('surface air temperature', 
+                                     'f4', ('lat', 'lon'), zlib = True)
+        
+        #assign variables
+        longitudes[:] = lons
+        latitudes[:] = lats
+        Ta[:] = temp
+
+        #attribute
+        nc_root.description = "REDCAPP-derived surface air temperature"
+        longitudes.units = 'degree_east (decimal)'
+        latitudes.units  = 'degree_north (decimal)'
+        Ta.units = 'celsius'
+        
+        nc_root.close()
+
+    def extractStationDataCSV(self, stations, file_out):
+        """
+        Exports air temperature time series of the given stations 
+        in csv format
+        """
+        
+        temp,time,names = self.stationTemp(stations)
+
+        #write CSV
+        names.insert(0, 'Time_UTC')
+        with open(file_out, 'wb') as output_file:
+            writer = csv.writer(output_file)
+            writer.writerow(names)
+            valu = temp.tolist()
+            for n in range(len(time)):
+                row = ['%.3f' % elem for elem in valu[n]]
+                row.insert(0,time[n])
+                writer.writerow(row)
+	
+      

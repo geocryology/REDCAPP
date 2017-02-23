@@ -48,29 +48,24 @@
 #
 # ==============================================================================
 
-from redcapp import redcapp_get, eraData
+from redcapp import redcapp_get, eraData, rawData, redcappTemp
 from datetime import datetime
 from os import path
 
-
 # directory containing all raw data and output data
-dir_data = '/Users/stgruber/Desktop/data'
-
-# Digital ELevation Model in ASCIIGRID format and lat/lon WGS84 grid
-dem_file = 'lalala'
+dir_data = 'C:/OneDrive/data'
 
 # output file names
-dem_out  = 'DEM_fine-scale.nc' # high-resolution topography file 
-spat_out = 'spatialT.nc'       # spatialised mean air temperature
-#TODO: make this only one file per variable, only give name and the n 
-tser_out  = ['C:/OneDrive/GitHub/REDCAPP/Result/upperAirT.csv',
-             'C:/OneDrive/GitHub/REDCAPP/Result/coarseLandSurEffect.csv']# Fileout directory
 
+spatTopo_out = 'spatialTopo.nc' # spatialised topography factors
+statTopo_out = 'stationTopo.csv'# station topography factors
+spatTemp_out = 'spatialT.nc'    # spatialised mean air temperature
+statTemp_out = 'stationT.csv'   # station timeseries air temperature
 
 
 #location: alps
-date  = {'beg' : datetime(2015,1,1),
-         'end' : datetime(2015,1,10)}
+date  = {'beg' : datetime(2015,12,1,00,00),
+         'end' : datetime(2015,12,5,18,00)}
          
 area  = {'north' : 46.65,
          'south' : 46.35,
@@ -87,8 +82,17 @@ stations=[{'name':'COV','lat': 46.41801198, 'lon': 9.821232448, 'ele': 3350.5},
 
 # make file names
 dem_ncdf  = path.join(dir_data, 'DEM_testArea.nc')
-geop      = path.join(dir_data, 'ecmwf_erai_to.nc')
-spat_out  = path.join(dir_data, spat_out)
+spatTopo_out = path.join(dir_data, spatTopo_out)
+statTopo_out = path.join(dir_data, statTopo_out)
+spatTemp_out = path.join(dir_data, spatTemp_out)
+statTemp_out = path.join(dir_data, statTemp_out)
+
+dataImport = rawData(dir_data)
+sa = dataImport.saf_get()# 2-meter air temperature
+pl = dataImport.plf_get()# pressure level air temperature
+
+# dem resolution
+resolution = 3.0/3600
 
 # === DOWNLOAD =================================================================
                                 
@@ -100,31 +104,35 @@ eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_sa_*'),1)
 eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_pl_*'),1)
 
 
-# ==== IMPORT DEM ==============================================================
+# ==== DEM CONVERSION ==========================================================
+# If the DEM file is in ASCII format, please run the following codes to convert
+# ASCII DEM to netcdf format. The input dem will be replaced by the new 
+# converted DEM. Otherwise, please ignore this part.
 
-# TODO: Make function that allows user to import ASCII files. Provide example 
-# data as ASCII file. In the import DEM function, have a flag:
-# "geomorphometry = true" so that mrvbf, hypso, and range are already calculated
-# and added to the dem netcdf.
+# Input Digital ELevation Model in ASCIIGRID format and lat/lon WGS84 grid
+dem_file = 'DEM_testArea.asc'
+# Output Digital ELevation Model in netcdf format
+dem_out  = 'DEM_fine_scale.nc'  # high-resolution topography file 
+dem_out   = path.join(dir_data, dem_out)
+# convert
+dataImport = rawData(dir_data)
+dataImport.ascii2ncdf(dem_file, dem_out)
+dem_ncdf = dem_out
+
+# ==== IMPORT REANALYSIS =======================================================
+dataImport = rawData(dir_data)
+sa = dataImport.saf_get()# 2-meter air temperature
+pl = dataImport.plf_get()# pressure level air temperature
+geop = dataImport.geopf_get()# geopotential file
 
 
-
-# ==== SPATIALIZED MEAN TEMPERATURE ============================================
-
-# TODO: make this a function that finds teh right files in the directory based on
-# 'ecmwf_erai_sa_*' and 'ecmwf_erai_pl_*'. Otherwise the user has to adjust 
-#  the file names manually
-sa   = path.join(dir_data, 'ecmwf_erai_sa_m_151201_151231.nc')
-pl   = path.join(dir_data, 'ecmwf_erai_pl_m_151201_151231.nc')
-
-#TODO: DOES THIS ACTUALLY CONTAIN THE LSCF?
-
-downscaling = downscaling(geop, sa, pl, dem_ncdf)
+# ==== REDCAPP TEMPERATURE =====================================================
+#setting-up
 variable = 'Temperature'
-downscaling.extractSpatialDataNCF(date, variable, spat_out)
+Redcapp = redcappTemp(geop, sa, pl, variable, date, dem_ncdf, resolution)
 
+# SPATIALIZED MEAN AIR TEMPERATURE
+Redcapp.extractSpatialDataNCF(spatTemp_out)
 
-# ==== AIR TEMPERATURE TIME SERIES =============================================
-
-downscaling.extractStationDataCSV(date, variable, stations, tser_out)
-
+# STATION AIR TEMPERATURE TIME SERIES
+Redcapp.extractStationDataCSV(stations, statTemp_out)
