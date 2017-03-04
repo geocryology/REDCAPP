@@ -283,7 +283,7 @@ class ERAto(ERAgeneric):
     def __init__(self, area, directory):
         self.area       = area
         self.date       = {'beg' : datetime(1979, 1, 1),
-                                    'end' : datetime(1979, 1, 1)}
+                           'end' : datetime(1979, 1, 1)}
         self.directory  = directory
         self.file_grib  = path.join(self.directory,'ecmwf_erai_to.grib')
         self.file_ncdf  = path.join(self.directory,'ecmwf_erai_to.nc')
@@ -479,10 +479,10 @@ class eraData(object):
                                units = "seconds since 1970-1-1",
                                calendar='standard')
 
-        print "Time:      "    + str(self.time_min) + " to " + str(self.time_max)
-        print "Latitude:  "   + str(self.lat_min) + " to " + str(self.lat_max)
+        print "Time:      " + str(self.time_min) + " to " + str(self.time_max)
+        print "Latitude:  " + str(self.lat_min) + " to " + str(self.lat_max)
         print "Longitude: " + str(self.lon_min) + " to " + str(self.lon_max)
-        print "Level:     "     + str(self.lev_min) + " to " + str(self.lev_max)
+        print "Level:     " + str(self.lev_min) + " to " + str(self.lev_max)
         ncf.close()
 
 
@@ -657,29 +657,35 @@ class rawData(object):
     def __init__(self, dir_data):
         self.dir = dir_data
         
-    def plf_get(self, nomenclature = 'ecmwf_erai_pl_*'):
+    def file_get(self, nomenclature):
+        '''
+        '''
+        flist = gl.glob(path.join(self.dir, nomenclature))
+        if len(flist) >= 1:
+            return flist[0]
+        else:
+            print("File " + nomenclature + " not found in directory " + 
+                  self.dir + ".")
+    
+    def plf_get(self, nomenclature = 'ecmwf_erai_pl_m*'):
         """finds the pressure level files in the directory 
-        based on 'ecmwf_erai_pl_*'
+        based on 'ecmwf_erai_pl_m*'
         """
-        for fname in listdir(self.dir):
-            if fname in gl.glob(nomenclature):
-                return path.join(self.dir, fname)
+        return self.file_get(nomenclature)
             
-    def saf_get(self, nomenclature = 'ecmwf_erai_sa_*'):
+    def saf_get(self, nomenclature = 'ecmwf_erai_sa_m*'):
         """finds the pressure level files in the directory 
-        based on 'ecmwf_erai_pl_*'
+        based on 'ecmwf_erai_pl_m*'
         """
-        for fname in listdir(self.dir):
-            if fname in gl.glob(nomenclature):
-                return path.join(self.dir, fname)
+        return self.file_get(nomenclature)
+
             
     def geopf_get(self, nomenclature = 'ecmwf_erai_to*'):
         """finds the era-interim geopotential file in the directory 
         based on 'ecmwf_erai_to*'
         """
-        for fname in listdir(self.dir):
-            if fname in gl.glob(nomenclature):
-                return path.join(self.dir, fname)
+        return self.file_get(nomenclature)
+
             
     def asciiDemHeader(self, demAsiccf):
         """Returns header information of input DEM in ASCIIGRID format"""
@@ -731,11 +737,11 @@ class rawData(object):
         
         #meta information
         header = self.asciiDemHeader(demAsciif)
-        ncol = int(re.findall(r'\d+', header[0])[0])
-        nrow = int(re.findall(r'\d+',  header[1])[0])
+        ncol   = int(re.findall(r'\d+', header[0])[0])
+        nrow   = int(re.findall(r'\d+', header[1])[0])
         xllcorner = float(re.findall(r'\d+\.\d+', header[2])[0])
         yllcorner = float(re.findall(r'\d+\.\d+', header[3])[0])
-        cellsize = float(re.findall(r'\d+\.\d+',  header[4])[0])
+        cellsize  = float(re.findall(r'\d+\.\d+', header[4])[0])
         
         #get variables
         ele = self.asciiDemEle(demAsciif)# elevation
@@ -753,21 +759,21 @@ class rawData(object):
         
         #create variables
         longitudes = nc_root.createVariable('lon', 'f4', ('lon'))
-        latitudes = nc_root.createVariable('lat', 'f4', ('lat'))
-        elevation = nc_root.createVariable('elevation', 
+        latitudes  = nc_root.createVariable('lat', 'f4', ('lat'))
+        elevation  = nc_root.createVariable('elevation', 
                                            'f4', ('lat', 'lon'), zlib = True)
         
         #assign variables
         longitudes[:] = lons
-        latitudes[:] = lats[::-1]
-        elevation[:] = ele
+        latitudes[:]  = lats[::-1]
+        elevation[:]  = ele
         
         #attribute
         nc_root.description = "high-resolution topography file"
         #resolution = cellsize
         longitudes.units = 'degree_east (decimal)'
         latitudes.units  = 'degree_north (decimal)'
-        elevation.units = 'm'
+        elevation.units  = 'm'
         
         nc_root.close()
 
@@ -847,12 +853,13 @@ class downscaling(object):
         Returns original (NO interpolation) coarse gird metadata
         in format of [lat, lon, geop], based on geopotential file
         """
-        longitude = self.geop['longitude'][:]
-        latitude = self.geop['latitude'][:]
+        longitude = self.geop['lon'][:]
+        latitude  = self.geop['lat'][:]
         lons, lats = np.meshgrid(longitude, latitude)
         lons = lons.reshape(lons.size)
         lats = lats.reshape(lats.size)
-        geop = self.geop['z'][0,:,:]#geopotential
+#        geop = self.geop['z'][0,:,:]#geopotential
+        geop = self.geop['Geopotential'][0,:,:]#geopotential
         geop = geop.reshape(geop.size)
 
         out_xyz_ori = np.array([lats, lons, geop]).T
@@ -883,9 +890,10 @@ class downscaling(object):
             out_xyz_sur = downscaling.surGrid(lats, lons, out_xyz_dem[:,:2])
         """
         
-        longitude = self.geop['longitude'][:]
-        latitude  = self.geop['latitude'][::-1]
-        in_v = self.geop['z'][0,::-1,:]#geopotential
+        longitude = self.geop['lon'][:]
+        latitude  = self.geop['lat'][::-1]
+#        in_v = self.geop['z'][0,::-1,:]#geopotential
+        in_v = self.geop['Geopotential'][0,::-1,:] #geopotential
         fz = RegularGridInterpolator((latitude,longitude), in_v, 'linear')
         out_xy = np.array([lats, lons]).T
 
