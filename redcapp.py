@@ -891,9 +891,8 @@ class downscaling(object):
         """
         
         longitude = self.geop['lon'][:]
-        latitude  = self.geop['lat'][::-1]
-#        in_v = self.geop['z'][0,::-1,:]#geopotential
-        in_v = self.geop['Geopotential'][0,::-1,:] #geopotential
+        latitude  = self.geop['lat'][:]
+        in_v = self.geop['Geopotential'][0,0,:,:] #geopotential
         fz = RegularGridInterpolator((latitude,longitude), in_v, 'linear')
         out_xy = np.array([lats, lons]).T
 
@@ -1925,56 +1924,6 @@ class topography(object):
         return rangeE
 		
     
-    
-    def spatialTopo(self, file_out):
-        """Export a netCDF4 file contains all topographic information.
-        
-        Args:
-            file_out = 'C:/Users/CaoBin/Desktop/topo_testArea.nc'
-            
-        Example:
-            topoEx.spatialTopo(file_out)
-        """
-        
-        mrvbf = self.nmrvbf()
-        hypso = self.coarseHypso()
-        eleRange = self.eleRange()
-        
-        #create nc file
-        nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
-        
-        #create dimensions
-        nc_root.createDimension('lat', mrvbf.shape[0])
-        nc_root.createDimension('lon', mrvbf.shape[1])
-        
-        #create variables
-        longitudes = nc_root.createVariable('lon', 'f4', ('lon'))
-        latitudes  = nc_root.createVariable('lat', 'f4', ('lat'))
-        Hypso  = nc_root.createVariable('hypso','f4',('lat','lon'),zlib=True)
-        Mrvbf  = nc_root.createVariable('mrvbf','f4',('lat','lon'),zlib=True)
-        RangeE = nc_root.createVariable('range','f4',('lat','lon'),zlib=True)
-        
-        longitudes.setncatts({'long_name': u"longitude"})
-        latitudes.setncatts({'long_name': u"latitude"})
-        Mrvbf.setncatts({'long_name': 
-                         "normalized multiresolution index of valley bottom flatness"})
-        Hypso.setncatts({'long_name': u"hyposmetric position"})
-        RangeE.setncatts({'long_name': u"elevation range in prescirbef neighbourhood"})
-        
-        #assign variables
-        longitudes[:] = self.lon
-        latitudes[:] = self.lat
-        Hypso[:] = hypso
-        Mrvbf[:] = mrvbf
-        RangeE[:] = eleRange
-        
-        #attribute
-        nc_root.description = "fine-scale DEM-derived topographic factors"
-        longitudes.units = 'degree_east (demical)'
-        latitudes.units = 'degree_north (demical)'
-        
-        nc_root.close()
-    
 		
 class landSurCorrectionFac(object):
     """
@@ -2007,6 +1956,7 @@ class landSurCorrectionFac(object):
         self.beta  = beta
         self.alpha = alpha
         self.resolution = demResolution
+        self.dem_ncdf = nc.Dataset(self.dem, 'r')
     
     def scale(self, eleRange):
         
@@ -2015,25 +1965,67 @@ class landSurCorrectionFac(object):
     def LSCF(self, hypso, mrvbf, eleR):
         """Returns land surface correction factor"""
         s = self.scale(eleR)
-        p = mrvbf*(1-s)
-        f = hypso* (1- s) + s
+        h = hypso* (1- s) + s
+        v = mrvbf*(1-s)
         
-        lscf = self.beta*f + self.alpha*p
+        lscf = self.alpha*h + self.beta*v
         
         return lscf
+    
         
-    def spatialLSCF(self):
-        """"Returns spatialized land surface correction"""
+    def spatialLSCF(self, file_out):
+        """"Returns and export spatialized land surface correction"""
+        
         topo = topography(self.dem, self.resolution)
         mrvbf = topo.nmrvbf()
         hypso = topo.coarseHypso()
         eleR  = topo.eleRange()
-        
         lscf = self.LSCF(hypso, mrvbf, eleR)
+        
+        
+        # ---- export geomorphometric factors ---------------------------------
+        # create nc file
+        nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
+        
+        # create dimensions
+        nc_root.createDimension('lat', mrvbf.shape[0])
+        nc_root.createDimension('lon', mrvbf.shape[1])
+        
+        # create variables
+        longitudes = nc_root.createVariable('lon', 'f4', ('lon'))
+        latitudes  = nc_root.createVariable('lat', 'f4', ('lat'))
+        Hypso      = nc_root.createVariable('hypso','f4',('lat','lon'),zlib=True)
+        Mrvbf      = nc_root.createVariable('mrvbf','f4',('lat','lon'),zlib=True)
+        RangeE     = nc_root.createVariable('eleRange','f4',('lat','lon'),zlib=True)
+        Lscf       = nc_root.createVariable('lscf','f4',('lat','lon'), zlib=True)
+        
+        longitudes.setncatts({'long_name': u"longitude"})
+        latitudes.setncatts({'long_name': u"latitude"})
+        Mrvbf.setncatts({'long_name': 
+                         "normalized multiresolution index of valley bottom flatness"})
+        Hypso.setncatts({'long_name': u"hyposmetric position"})
+        RangeE.setncatts({'long_name': u"elevation range in prescirbef neighbourhood"})
+        Lscf.setncatts({'long_name': u"Land surface correction factor"})
+        
+        #assign variables
+        longitudes[:] = self.dem_ncdf.variables['lon'][:]
+        latitudes[:] = self.dem_ncdf.variables['lat'][:]
+        Hypso[:] = hypso
+        Mrvbf[:] = mrvbf
+        RangeE[:] = eleR
+        Lscf[:] = lscf
+        
+        #attribute
+        nc_root.description = "fine-scale DEM-derived topographic factors"
+        longitudes.units = 'degree_east (demical)'
+        latitudes.units = 'degree_north (demical)'
+        
+        nc_root.close()
         
         return lscf
     
-    def stationLSCF(self, stations):
+    
+    def stationLSCF(self, stations, file_out):
         """Returns station land surface correction factor"""
         out_xyz = np.asarray([[s['lat'],s['lon'],s['ele']] for s in stations])
         
@@ -2043,6 +2035,16 @@ class landSurCorrectionFac(object):
         eleR = topo.eleRange(out_xy = out_xyz[:,:2], bound = 30)
         
         lscf = self.LSCF(hypso, mrvbf, eleR)
+        
+        names = [s['name']for s in stations]
+        with open (file_out, 'wb') as f:
+            writer = csv.writer(f)
+            writer.writerow(['station', 'hypso', 'mrvbf', 'eleRange', 'LSCF'])
+            
+            values = np.asarray([names, mrvbf, hypso, eleR, lscf]).T
+            
+            for row in values:
+                writer.writerow(row)
         
         return lscf
     
@@ -2128,7 +2130,7 @@ class redcappTemp(object):
         return values, lons, lats
         
         
-    def spatialTemp(self):
+    def spatialTemp(self, topo_out):
         """Returns spatialized mean air temperature."""
         #upp-air temperature and coarse land-surface effects
         Downscaling = downscaling(self.geop, self.sa, self.pl, self.dem)
@@ -2138,7 +2140,7 @@ class redcappTemp(object):
         print "Temperature Done!"
         print "Conducting terrain analysis..."
         LSCF = landSurCorrectionFac(self.dem, self.resolution)
-        lscf = LSCF.spatialLSCF()
+        lscf = LSCF.spatialLSCF(topo_out)
         
         #redcapp temperaure
         temp = pl+lscf*dt
@@ -2147,7 +2149,7 @@ class redcappTemp(object):
         
         return temp, lons, lats
     
-    def stationTemp(self, stations):
+    def stationTemp(self, stations, topo_out):
         """Returns air temperature time series."""
         
         #upp-air temperature and coarse land-surface effects
@@ -2161,7 +2163,7 @@ class redcappTemp(object):
         print "Temperature Done!"
         print "Conducting terrain analysis..."
         LSCF = landSurCorrectionFac(self.dem, self.resolution)
-        lscf = LSCF.stationLSCF(stations)
+        lscf = LSCF.stationLSCF(stations, topo_out)
         
         #redcapp temperature
         temp = np.zeros((pl.shape))# hold temp
@@ -2175,17 +2177,17 @@ class redcappTemp(object):
         return temp, time, names
         
     
-    def extractSpatialDataNCF(self, file_out):
+    def extractSpatialDataNCF(self, topo_out, temp_out):
         """"Export spatialized mean air temperature of given dem
         in netcdf format. Please not that the area of output spatial 
         temperature will be smaller than the given dem owing to the 
         mrvbf simulation donot include the edge. Plsease also see the 
         introduction of clipEdge() fucntion"""
         
-        temp, lons, lats = self.spatialTemp()
+        temp, lons, lats = self.spatialTemp(topo_out)
         
         #create nc file
-        nc_root = nc.Dataset(file_out ,'w', format = 'NETCDF4_CLASSIC')
+        nc_root = nc.Dataset(temp_out ,'w', format = 'NETCDF4_CLASSIC')
         
         #create dimensions
         nc_root.createDimension('lat', len(lats))
@@ -2210,17 +2212,17 @@ class redcappTemp(object):
         
         nc_root.close()
 
-    def extractStationDataCSV(self, stations, file_out):
+    def extractStationDataCSV(self, stations, topo_out, temp_out):
         """
         Exports air temperature time series of the given stations 
         in csv format
         """
         
-        temp,time,names = self.stationTemp(stations)
+        temp,time,names = self.stationTemp(stations, topo_out)
 
         #write CSV
         names.insert(0, 'Time_UTC')
-        with open(file_out, 'wb') as output_file:
+        with open(temp_out, 'wb') as output_file:
             writer = csv.writer(output_file)
             writer.writerow(names)
             valu = temp.tolist()
