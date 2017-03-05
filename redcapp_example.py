@@ -53,7 +53,7 @@ from datetime import datetime
 from os import path
 
 # directory containing all raw data and output data
-dir_data = 'C:/OneDrive/GitHub/REDCAPP/data'
+dir_data = '/Users/stgruber/Desktop/bin'
 
 # input Digital ELevation Model in ASCIIGRID format and lat/lon WGS84 grid,
 # must be (a) in directory indicated above, (b) situated within area indicated 
@@ -96,12 +96,12 @@ statTemp_out = path.join(dir_data, statTemp_out)
 resolution = 3.0/3600
 
 # === DOWNLOAD =================================================================             
-rg = redcapp_get(date, area, elevation, dir_data, 5) 
-rg.retrieve()
+#rg = redcapp_get(date, area, elevation, dir_data, 5) 
+#rg.retrieve()
 
-eraDownload = eraData()
-eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_sa_*'),1)
-eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_pl_*'),1)
+#eraDownload = eraData()
+#eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_sa_*'),1)
+#eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_pl_*'),1)
 
 # ==== IMPORT REANALYSIS =======================================================
 dataImport = rawData(dir_data)
@@ -120,7 +120,7 @@ variable = 'Temperature'
 Redcapp = redcappTemp(geop, sa, pl, variable, date, dem_ncdf, resolution)
 
 # SPATIALIZED MEAN AIR TEMPERATURE
-Redcapp.extractSpatialDataNCF(spatTopo_out, spatTemp_out)
+Redcapp.extractSpatialDataNCF(spatTemp_out)
 
 # STATION AIR TEMPERATURE TIME SERIES
-Redcapp.extractStationDataCSV(stations, statTopo_out, statTemp_out)
+Redcapp.extractStationDataCSV(stations, statTemp_out)
