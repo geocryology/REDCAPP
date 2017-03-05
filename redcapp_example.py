@@ -53,16 +53,18 @@ from datetime import datetime
 from os import path
 
 # directory containing all raw data and output data
-dir_data = '/Users/stgruber/Desktop/bin'
+dir_data = 'C:/OneDrive/GitHub/REDCAPP/data'
 
 # input Digital ELevation Model in ASCIIGRID format and lat/lon WGS84 grid,
 # must be (a) in directory indicated above, (b) situated within area indicated 
 # below, and (c) encompass the station locations given below.
-dem_file = 'DEM_testArea.asc'
+dem_ascii = 'DEM_testArea.asc'
 
 # output file names
-spatTemp_out = 'spatialT.nc'    # spatialised mean air temperature
-statTemp_out = 'stationT.csv'   # station timeseries air temperature
+spatTopo_out = 'spatTopo.nc'  # modeled spatialized geomorphometric factors
+statTopo_out = 'statTopo.csv' # modeled spatation geomorphometric factors
+spatTemp_out = 'spatialT.nc'  # spatialised mean air temperature
+statTemp_out = 'stationT.csv' # station timeseries air temperature
 
 
 #location: alps
@@ -83,23 +85,23 @@ stations=[{'name':'COV','lat': 46.41801198, 'lon': 9.821232448, 'ele': 3350.5},
           {'name':'SAM','lat': 46.52639523, 'lon': 9.878944266, 'ele': 1756.2}]
 
 # make full file names
-dem_file  = path.join(dir_data, dem_file)
+dem_ascii  = path.join(dir_data, dem_ascii)
 dem_ncdf  = path.join(dir_data, 'DEM_testArea.nc')
+spatTopo_out = path.join(dir_data, spatTopo_out)
+statTopo_out = path.join(dir_data, statTopo_out)
 spatTemp_out = path.join(dir_data, spatTemp_out)
 statTemp_out = path.join(dir_data, statTemp_out)
 
 # dem resolution
 resolution = 3.0/3600
 
-
 # === DOWNLOAD =================================================================             
-#rg = redcapp_get(date, area, elevation, dir_data, 5) 
-#rg.retrieve()
+rg = redcapp_get(date, area, elevation, dir_data, 5) 
+rg.retrieve()
 
-#eraDownload = eraData()
-#eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_sa_*'),1)
-#eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_pl_*'),1)
-
+eraDownload = eraData()
+eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_sa_*'),1)
+eraDownload.NCDFmergeWildcard(path.join(dir_data, 'ecmwf_erai_pl_*'),1)
 
 # ==== IMPORT REANALYSIS =======================================================
 dataImport = rawData(dir_data)
@@ -107,13 +109,10 @@ sa   = dataImport.saf_get()    # 2-meter air temperature
 pl   = dataImport.plf_get()    # pressure level air temperature
 geop = dataImport.geopf_get()  # geopotential file
 
-
 # ==== DEM CONVERSION ==========================================================
-# If the DEM file is in ASCII format, please run the following code to convert
-# ASCII DEM to netcdf format. File dem_ncdf will be replaced by the new 
-# converted DEM. Otherwise, please ignore this part.
-dataImport.ascii2ncdf(dem_file, dem_ncdf)
 
+# convert ASCII DEM to netcdf format.
+dataImport.ascii2ncdf(dem_ascii, dem_ncdf)
 
 # ==== REDCAPP TEMPERATURE =====================================================
 #setting-up
@@ -121,7 +120,7 @@ variable = 'Temperature'
 Redcapp = redcappTemp(geop, sa, pl, variable, date, dem_ncdf, resolution)
 
 # SPATIALIZED MEAN AIR TEMPERATURE
-Redcapp.extractSpatialDataNCF(spatTemp_out)
+Redcapp.extractSpatialDataNCF(spatTopo_out, spatTemp_out)
 
 # STATION AIR TEMPERATURE TIME SERIES
-Redcapp.extractStationDataCSV(stations, statTemp_out)
+Redcapp.extractStationDataCSV(stations, statTopo_out, statTemp_out)
