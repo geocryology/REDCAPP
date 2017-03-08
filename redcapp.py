@@ -46,7 +46,7 @@ from scipy.ndimage import gaussian_filter,generic_filter,convolve,minimum_filter
 from math import radians, exp, floor
 from bisect import bisect_left
 from datetime import datetime, timedelta
-from os import path, remove, listdir
+from os import path, remove
 
 import glob as gl
 
@@ -643,7 +643,6 @@ class redcapp_get(object):
 
 class rawData(object):
     """
-    
     Args:
         dir_data: directory containing all raw data and output data
         
@@ -658,8 +657,8 @@ class rawData(object):
         self.dir = dir_data
         
     def file_get(self, nomenclature):
-        '''
-        '''
+        """file check"""
+        
         flist = gl.glob(path.join(self.dir, nomenclature))
         if len(flist) >= 1:
             return flist[0]
@@ -777,6 +776,7 @@ class rawData(object):
         
         nc_root.close()
 
+
 class downscaling(object):
     """
     Return object for downscaling that has methods for interpolationg
@@ -858,7 +858,6 @@ class downscaling(object):
         lons, lats = np.meshgrid(longitude, latitude)
         lons = lons.reshape(lons.size)
         lats = lats.reshape(lats.size)
-#        geop = self.geop['z'][0,:,:]#geopotential
         geop = self.geop['Geopotential'][0,:,:]#geopotential
         geop = geop.reshape(geop.size)
 
@@ -1459,7 +1458,38 @@ class topography(object):
         xL = x1[(cellsize-1)/2:len(lat):cellsize]
 
         return [yL, [x*cellsize for x in xL]]#x1[np.arange((cellsize-1)/2,len(lat),cellsize)]
-
+    
+    def demSize(self):
+        """Returns dem size in km"""
+        
+        yi = self.pixelLength(self.lat)[0] # cell size in m
+        # dem size [lat, lon] in km
+        size = [yi * dim/1000 for dim in self.shape]
+        
+        return size
+    
+    def sizeCheck(self, threshold = 0.8):
+        """Check weather input dem is big enough to simulate 
+        hypsometric position."""
+        
+        size = self.demSize()
+        # valid percent (without edge effecet)
+        validPer = [(size[0]-30)/size[0], (size[1]-30)/size[1]]
+        
+        if any([validPer[0] < threshold, validPer < threshold]):
+            print ('Input DEM (width in ' + 
+                               str(int(size[1])) + ' km, breadth in ' + 
+                               str(int(size[0])) + ' km) ' + 
+                'is too small to meaningfully ' +
+                'accommodate the 30 km neighbourhood. Only one value is used ' +
+                'as elevation range for the entire DEM')
+            
+            return True
+        
+        else:
+            return False
+        
+    
     def scale(self, x, t, p):
         """
         Scale the input value onto [0,1]
@@ -1473,7 +1503,7 @@ class topography(object):
         Returns:
             scaled value
          """
-        
+
         return 1/(1 + (x/t)**p)
 
 
@@ -1682,7 +1712,7 @@ class topography(object):
         F1 = self.flatness(self.dem['elevation'][:], out_xy=out_xy, Tf=initTf)
         L1 = self.lowness(self.dem['elevation'][:], out_xy=out_xy, lowRadius=7)
         PVF1 = F1*L1
-        VF1 = 1 - self.scale(PVF1, 0.3,4)
+        VF1 = 1 - self.scale(PVF1, 0.3, 4)
         #second step
         F2 = self.flatness(self.dem['elevation'][:], out_xy=out_xy,Tf=initTf/2)
         L2 = self.lowness(self.dem['elevation'][:], out_xy=out_xy, lowRadius=13)
@@ -1703,16 +1733,16 @@ class topography(object):
         Args:
         out_xy: Array-like, sites need to be simulated. If not 
             given (None), all the DEM cells will be simulated.
-        initTf:
+        initTf: first slope threshold
         
         Returns:
             mrvbf: smoothed and scaled mrvbf
         """
         mrvbf, cf = self.finestScale(initTf = initTf, out_xy = out_xy)
-        sdemL = self.smoothDEM(self.dem['elevation'][:])#smoothed base resolution dem
+        sdemL = self.smoothDEM(self.dem['elevation'][:]) # smoothed base resolution dem
         meanKernel = np.full((3,3), 1.0/(3*3))
         for L in range(3,9):
-            #L = 4
+            #print L
             shape = sdemL.shape
             Tf = initTf / (2**(L-1))
             #aggreate sdem for L step
@@ -1722,6 +1752,7 @@ class topography(object):
             sdemL = sdemL[:, lonIndex]
 
             #MRVBF for L step
+            np.seterr(invalid = 'ignore')
             FL = self.flatness(sdemL, Tf, out_xy = out_xy,L = L)
             LL = self.lowness(sdemL, out_xy = out_xy, L= L, lowRadius = 13)
             cf = cf*FL
@@ -1767,45 +1798,48 @@ class topography(object):
 
     def aroundArea(self, centerSite, size = 30):
         """
-        Return the surrouding values of givens site.
+        Return the neighbouring elevation of givens site.
         Args:
-            centerSite: The center cell [lat, lon, ele] of the surrounding 
-            area. All the cells with the distance <= size/2 will be clipped.
-            size: Diameter of surrounding area.
+            centerSite: 
+                The center cell [lat, lon] of the surrounding 
+                area. All the cells with the distance <= size/2 will be clipped.
+            size: 
+                Diameter of surrounding area in km.
         
         Returns:
-            Array like clipped value with given size.
+            Array-like dataframe.
             
         Example:
-            centerSite = [46.749374, 9.5506067, 1556.0]
+            centerSite = [46.749374, 9.5506067]
             eleSubset = topo.aroundArea(centerSite)
         """
         
-        #area size
-        yi = self.pixelLength(self.lat)[0]
-        lowRadius = int(size*1000/(2*yi))#radius
-        #nearest cell index
-        latPosition = np.abs(self.dem.variables['lat'][:]-centerSite[0]).argmin()
-        lonPosition = np.abs(self.dem.variables['lon'][:]-centerSite[1]).argmin()
-        #area cell index
-        latli = latPosition - lowRadius
-        latui = latPosition + lowRadius
-        lonli = lonPosition - lowRadius
-        lonui = lonPosition + lowRadius
+        # area radiaus
+        yi = self.pixelLength(self.lat)[0] # cell size in m
+        lowRadius = int(size*1000/(2*yi)) # radius in pixel
+        # nearest cell index
+        latPosition = np.abs(self.lat-centerSite[0]).argmin()
+        lonPosition = np.abs(self.lon-centerSite[1]).argmin()
+        # subset area corner index
+        latli = latPosition - lowRadius # bottom index
+        latui = latPosition + lowRadius # top index
+        lonli = lonPosition - lowRadius # left index
+        lonri = lonPosition + lowRadius # right index
         #nearest area with bound size
-        eleSubset = self.dem.variables['elevation'][latli:latui, lonli:lonui]
+        eleSubset = self.dem.variables['elevation'][latli:latui, lonli:lonri]
         return eleSubset
 
+    
     def siteHypso(self, out_xy, bound = 30):
         """
         Returns the hypsometric position in the surrouding area.
         
         Args:
-            out_xyz: Site to simulate hypsometric position.
+            out_xy: Site to simulate hypsometric position.
             bound: Diameter of surrounding area in km.
             
         Returns:
-            lowness: Hyposmetric position in the surrouding area. lowness
+            lowness: Hyposmetric position in the surrouding area. Lowness
             ranges from 1 (deepest valley) to 0 (highest peak).
             
         Example:
@@ -1816,11 +1850,10 @@ class topography(object):
         
         lowness = []
         for i, site in enumerate(out_xy):
-            #print(site)
-            #site = [ 46.4820675,    6.98736116]
-            ind_ele = self.aroundArea(site, size = bound)#aroud ele
+            ind_ele = self.aroundArea(site, size = bound)
             pctl = np.sum(ind_ele >= out_xy[i,2])/float(ind_ele.size)
             lowness.append(pctl)
+        
         return lowness
 
 
@@ -1900,10 +1933,14 @@ class topography(object):
     
     def eleRange(self, bound = 30, out_xy = None):
         """
-        Return elevation range for each dem cell within a area.
+        Returns elevation range for each dem cell within a area.
+        If the input DEM is too small elevation range is condisered as 
+        a constant value, which is derived from the center 30 km × 30 km area,
+        for the entire DEM. Otherwise, elevation range is derived from the 
+        neighbourhood 30 km area.
         
         Args:
-            bound: Diameter of surrounding size
+            bound: Diameter of surrounding size in km
             
         Returns:
             rangeE: Array like, range of elevation range.
@@ -1912,15 +1949,30 @@ class topography(object):
         Example:
             eleRange = topo.eleRange(out_xy = None, bound = 30)
         """
-        lowRadius = bound*1000/(self.pixelLength(self.lat)[0])
-        minEle = minimum_filter(self.dem['elevation'][:], size = lowRadius)
-        maxEle = maximum_filter(self.dem['elevation'][:], size = lowRadius)
-        rangeE = maxEle - minEle
-        del minEle, maxEle
-        if not (out_xy is None):
-            rangeInterp = RegularGridInterpolator((self.lat[::-1],self.lon),
-            rangeE[::-1], method = 'linear', bounds_error = False)
-            rangeE = rangeInterp(out_xy)
+        
+        if self.sizeCheck():
+            centerlat = self.lat[len(self.lat)/2]
+            centerlon = self.lon[len(self.lon)/2]
+            subEle = self.aroundArea([centerlat, centerlon])
+                
+            rangeCon = np.max(subEle) - np.min(subEle)
+                
+            if not (out_xy is None):
+                rangeE = np.repeat(rangeCon, len(out_xy))
+            else:
+                rangeE = np.ones(self.shape)*rangeCon
+                
+        else:
+            lowRadius = bound*1000/(self.pixelLength(self.lat)[0])
+            minEle = minimum_filter(self.dem['elevation'][:], size = lowRadius)
+            maxEle = maximum_filter(self.dem['elevation'][:], size = lowRadius)
+            rangeE = maxEle - minEle
+            del minEle, maxEle
+            if not (out_xy is None):
+                rangeInterp = RegularGridInterpolator((self.lat[::-1],self.lon),
+                rangeE[::-1], method = 'linear', bounds_error = False)
+                rangeE = rangeInterp(out_xy)
+        
         return rangeE
 		
     
@@ -1977,7 +2029,7 @@ class landSurCorrectionFac(object):
         """"Returns and export spatialized land surface correction"""
         
         topo = topography(self.dem, self.resolution)
-        mrvbf = topo.nmrvbf()
+        mrvbf = topo.nmrvbf(out_xy = None, initTf = 50.0)
         hypso = topo.coarseHypso()
         eleR  = topo.eleRange()
         lscf = self.LSCF(hypso, mrvbf, eleR)
@@ -2004,7 +2056,7 @@ class landSurCorrectionFac(object):
         Mrvbf.setncatts({'long_name': 
                          "normalized multiresolution index of valley bottom flatness"})
         Hypso.setncatts({'long_name': u"hyposmetric position"})
-        RangeE.setncatts({'long_name': u"elevation range in prescirbef neighbourhood"})
+        RangeE.setncatts({'long_name': u"elevation range in prescirbed neighbourhood"})
         Lscf.setncatts({'long_name': u"Land surface correction factor"})
         
         #assign variables
@@ -2030,7 +2082,7 @@ class landSurCorrectionFac(object):
         out_xyz = np.asarray([[s['lat'],s['lon'],s['ele']] for s in stations])
         
         topo = topography(self.dem, self.resolution)
-        mrvbf = topo.nmrvbf(out_xy = out_xyz[:,:2], initTf = 50)
+        mrvbf = topo.nmrvbf(out_xy = out_xyz[:,:2], initTf = 50.0)
         hypso = topo.siteHypso(out_xy = out_xyz, bound = 30)
         eleR = topo.eleRange(out_xy = out_xyz[:,:2], bound = 30)
         

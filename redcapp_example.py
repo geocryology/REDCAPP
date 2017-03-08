@@ -58,23 +58,23 @@ dir_data = 'C:/OneDrive/GitHub/REDCAPP/data'
 # input Digital ELevation Model in ASCIIGRID format and lat/lon WGS84 grid,
 # must be (a) in directory indicated above, (b) situated within area indicated 
 # below, and (c) encompass the station locations given below.
-dem_ascii = 'DEM_testArea.asc'
+dem_ascii = 'DEM.asc'
 
 # output file names
 spatTopo_out = 'spatTopo.nc'  # modeled spatialized geomorphometric factors
 statTopo_out = 'statTopo.csv' # modeled spatation geomorphometric factors
 spatTemp_out = 'spatialT.nc'  # spatialised mean air temperature
 statTemp_out = 'stationT.csv' # station timeseries air temperature
-
+dem_ncdf     = 'DEM.nc'
 
 #location: alps
 date  = {'beg' : datetime(2015,12,1,00,00),
-         'end' : datetime(2015,12,5,18,00)}
+         'end' : datetime(2015,12,1,00,00)}
          
-area  = {'north' : 46.65,
-         'south' : 46.35,
-         'west'  : 9.70, #positive is westwards of Greenwich
-         'east'  : 9.95} #positive is westwards of Greenwich
+area  = {'north' : 47.45,
+         'south' : 45.55,
+         'west'  : 8.90,  #positive is westwards of Greenwich
+         'east'  : 10.85} #positive is westwards of Greenwich
          
 elevation = {'min' : 0, 
              'max' : 4500}
@@ -86,7 +86,7 @@ stations=[{'name':'COV','lat': 46.41801198, 'lon': 9.821232448, 'ele': 3350.5},
 
 # make full file names
 dem_ascii  = path.join(dir_data, dem_ascii)
-dem_ncdf  = path.join(dir_data, 'DEM_testArea.nc')
+dem_ncdf  = path.join(dir_data, dem_ncdf)
 spatTopo_out = path.join(dir_data, spatTopo_out)
 statTopo_out = path.join(dir_data, statTopo_out)
 spatTemp_out = path.join(dir_data, spatTemp_out)
