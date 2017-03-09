@@ -1964,7 +1964,7 @@ class topography(object):
                 
         else:
             lowRadius = bound*1000/(self.pixelLength(self.lat)[0])
-            dem = gaussian_filter(self.dem['elevation'][:], lowRadius)
+            dem = gaussian_filter(self.dem['elevation'][:], np.sqrt(4.5))
             minEle = minimum_filter(dem, size = lowRadius)
             maxEle = maximum_filter(dem, size = lowRadius)
             rangeE = maxEle - minEle
