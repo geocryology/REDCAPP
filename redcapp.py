@@ -1964,10 +1964,11 @@ class topography(object):
                 
         else:
             lowRadius = bound*1000/(self.pixelLength(self.lat)[0])
-            minEle = minimum_filter(self.dem['elevation'][:], size = lowRadius)
-            maxEle = maximum_filter(self.dem['elevation'][:], size = lowRadius)
+            dem = gaussian_filter(self.dem['elevation'][:], lowRadius)
+            minEle = minimum_filter(dem, size = lowRadius)
+            maxEle = maximum_filter(dem, size = lowRadius)
             rangeE = maxEle - minEle
-            del minEle, maxEle
+            del minEle, maxEle, dem
             if not (out_xy is None):
                 rangeInterp = RegularGridInterpolator((self.lat[::-1],self.lon),
                 rangeE[::-1], method = 'linear', bounds_error = False)
